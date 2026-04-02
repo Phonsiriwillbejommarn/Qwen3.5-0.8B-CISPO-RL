@@ -127,6 +127,12 @@ def main():
     )
     policy_model.train()
 
+    # Enable Gradient Checkpointing ถ้าตั้งค่าไว้ใน config
+    # ช่วยลด Activation Memory สำหรับ Qwen3.5 hybrid linear attention
+    if cfg.get("gradient_checkpointing", False):
+        policy_model.gradient_checkpointing_enable()
+        print(f"[Policy] Gradient Checkpointing enabled ✅")
+
     # Enable TF32 บน H100
     if cfg.get("tf32", True):
         torch.backends.cuda.matmul.allow_tf32 = True

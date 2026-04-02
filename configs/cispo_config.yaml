@@ -46,9 +46,9 @@ max_new_tokens: 8192           # Max tokens to generate per rollout (reasoning m
 max_prompt_length: 512         # Max prompt tokens
 
 # ─── Precision ────────────────────────────────────────────────────────────────
-bf16: true                     # Use bfloat16 (H100 native)
-tf32: true                     # Enable TF32 for matmul on Ampere/H100
-gradient_checkpointing: false  # Not needed on H100 for 0.8B model
+bf16: true                     # Use bfloat16 (H200 native)
+tf32: true                     # Enable TF32 for matmul on Ampere/H100/H200
+gradient_checkpointing: true   # Required for long-context with hybrid linear attention (Qwen3.5)
 
 # ─── Dataset ──────────────────────────────────────────────────────────────────
 # Options:
