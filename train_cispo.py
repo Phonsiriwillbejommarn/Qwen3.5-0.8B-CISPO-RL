@@ -103,12 +103,15 @@ def main():
 
     # ─── Resume Checkpoint Logic ───
     resume_path = cfg.get("resume_from_checkpoint")
+    if not resume_path:
+        # Auto-detect latest checkpoint in output_dir
+        resume_path = find_latest_checkpoint(output_dir)
+
     start_step = 1
     policy_model_path = cfg["policy_model_name"]
     
     if resume_path and Path(resume_path).exists():
-        print(f"[Resume] Found checkpoint at: {resume_path}")
-        policy_model_path = resume_path
+        policy_model_path = resume_path # โมเดลจะโหลดจาก checkpoint
 
     # ─── Policy Model ───
     print(f"\n[Policy] Loading: {policy_model_path}")
@@ -326,6 +329,30 @@ def main():
 # ─────────────────────────────────────────────────────────────
 # Helpers
 # ─────────────────────────────────────────────────────────────
+def find_latest_checkpoint(output_dir: Path) -> Optional[str]:
+    """สแกนหา checkpoint-* ล่าสุดใน output_dir"""
+    if not output_dir.exists():
+        return None
+    
+    checkpoints = []
+    for d in output_dir.iterdir():
+        if d.is_dir() and d.name.startswith("checkpoint-"):
+            try:
+                step = int(d.name.split("-")[1])
+                checkpoints.append((step, str(d)))
+            except (ValueError, IndexError):
+                continue
+    
+    if not checkpoints:
+        return None
+    
+    # เรียงลำดับเอาเลข X ที่สูงสุด
+    checkpoints.sort(key=lambda x: x[0], reverse=True)
+    latest_path = checkpoints[0][1]
+    print(f"[Auto-Resume] Detected latest checkpoint: {latest_path}")
+    return latest_path
+
+
 def _save_checkpoint(ckpt_dir: Path, model, optimizer, scheduler, step: int, metrics: Dict, cfg: Dict):
     ckpt_dir.mkdir(parents=True, exist_ok=True)
     model.save_pretrained(ckpt_dir)
