@@ -32,8 +32,8 @@ learning_rate: 5.0e-7
 warmup_steps: 10
 num_train_epochs: 3
 max_steps: 1000              # Override epochs if set (set -1 to use epochs)
-save_steps: 25               # พุชและเซฟทุก 25 steps ตามที่คุณขอ
-eval_steps: 25
+save_steps: 10               # พุชและเซฟทุก 25 steps ตามที่คุณขอ
+eval_steps: 10
 logging_steps: 1             # ดู log ทุก 1 step
 
 # Batch sizes (H100 80GB — full precision)
