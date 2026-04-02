@@ -304,7 +304,7 @@ def main():
             if global_step % save_steps == 0:
                 ckpt_dir = output_dir / f"checkpoint-{global_step}"
                 _save_checkpoint(
-                    ckpt_dir, policy_model, optimizer, scheduler, global_step, metrics, cfg
+                    ckpt_dir, policy_model, policy_tokenizer, optimizer, scheduler, global_step, metrics, cfg
                 )
                 saved_checkpoints.append(ckpt_dir)
 
@@ -318,7 +318,7 @@ def main():
 
     # ─── Final save ───
     final_dir = output_dir / "final_model"
-    _save_checkpoint(final_dir, policy_model, optimizer, scheduler, global_step, metrics, cfg)
+    _save_checkpoint(final_dir, policy_model, policy_tokenizer, optimizer, scheduler, global_step, metrics, cfg)
     print(f"\n[Done] Final model and state saved to: {final_dir}")
 
     if cfg.get("use_wandb", False):
@@ -353,9 +353,10 @@ def find_latest_checkpoint(output_dir: Path) -> Optional[str]:
     return latest_path
 
 
-def _save_checkpoint(ckpt_dir: Path, model, optimizer, scheduler, step: int, metrics: Dict, cfg: Dict):
+def _save_checkpoint(ckpt_dir: Path, model, tokenizer, optimizer, scheduler, step: int, metrics: Dict, cfg: Dict):
     ckpt_dir.mkdir(parents=True, exist_ok=True)
     model.save_pretrained(ckpt_dir)
+    tokenizer.save_pretrained(ckpt_dir) # เพิ่มการเซฟ Tokenizer ที่นี่ ✅
     torch.save(
         {
             "global_step": step,
