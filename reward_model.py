@@ -101,6 +101,11 @@ def compute_format_reward(response: str, intended_thinking: bool = True) -> floa
     if intended_thinking:
         # ─── โหมดคิด (Thinking Mode) ───
         score = 0.0
+        
+        # หักคะแนนหนักถ้า "ไม่มีแท็กเปิด" (ขี้เกียจลืมใส่แท็ก) -> หัก -0.5 ทันที
+        if not has_think_open:
+            return -0.5
+            
         if has_think_open: score += 0.3
         if has_think_close: score += 0.3
         if has_think_open and has_think_close and has_content_after_think:
@@ -109,7 +114,7 @@ def compute_format_reward(response: str, intended_thinking: bool = True) -> floa
         # หักคะแนนถ้าลืมปิดแท็ก
         if has_think_open and not has_think_close:
             score -= 0.5
-        return max(score, 0.0)
+        return max(score, -0.5)
     else:
         # ─── โหมดตอบตรง (Direct Mode) ───
         # ถ้าเผลอพ่นแท็กออกมาทั้งที่ไม่ได้สั่งให้คิด -> หักคะแนน

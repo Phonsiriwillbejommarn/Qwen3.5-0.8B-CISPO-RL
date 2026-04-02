@@ -18,11 +18,12 @@ import os
 import json
 import random
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 import numpy as np
 import torch
 import yaml
+from huggingface_hub import HfApi, create_repo
 from torch.optim import AdamW
 from torch.utils.data import DataLoader
 from transformers import (
@@ -288,7 +289,7 @@ def main():
             if global_step % save_steps == 0:
                 ckpt_dir = output_dir / f"checkpoint-{global_step}"
                 _save_checkpoint(
-                    ckpt_dir, policy_model, optimizer, scheduler, global_step, metrics
+                    ckpt_dir, policy_model, optimizer, scheduler, global_step, metrics, cfg
                 )
                 saved_checkpoints.append(ckpt_dir)
 
@@ -302,9 +303,8 @@ def main():
 
     # ─── Final save ───
     final_dir = output_dir / "final_model"
-    policy_model.save_pretrained(final_dir)
-    policy_tokenizer.save_pretrained(final_dir)
-    print(f"\n[Done] Final model saved to: {final_dir}")
+    _save_checkpoint(final_dir, policy_model, optimizer, scheduler, global_step, metrics, cfg)
+    print(f"\n[Done] Final model and state saved to: {final_dir}")
 
     if cfg.get("use_wandb", False):
         import wandb
@@ -314,7 +314,7 @@ def main():
 # ─────────────────────────────────────────────────────────────
 # Helpers
 # ─────────────────────────────────────────────────────────────
-def _save_checkpoint(ckpt_dir: Path, model, optimizer, scheduler, step: int, metrics: Dict):
+def _save_checkpoint(ckpt_dir: Path, model, optimizer, scheduler, step: int, metrics: Dict, cfg: Dict):
     ckpt_dir.mkdir(parents=True, exist_ok=True)
     model.save_pretrained(ckpt_dir)
     torch.save(
@@ -327,6 +327,26 @@ def _save_checkpoint(ckpt_dir: Path, model, optimizer, scheduler, step: int, met
         ckpt_dir / "trainer_state.pt",
     )
     print(f"[Checkpoint] Saved: {ckpt_dir}")
+
+    # ─── Push to Hub ───
+    if cfg.get("push_to_hub", False):
+        hub_model_id = cfg.get("hub_model_id")
+        hub_token = cfg.get("hub_token") or os.environ.get("HF_TOKEN")
+        if hub_model_id:
+            try:
+                print(f"[Hub] Pushing checkpoint to: {hub_model_id}")
+                api = HfApi()
+                create_repo(repo_id=hub_model_id, token=hub_token, exist_ok=True, private=cfg.get("hub_private", False))
+                api.upload_folder(
+                    folder_path=str(ckpt_dir),
+                    repo_id=hub_model_id,
+                    repo_type="model",
+                    token=hub_token,
+                    commit_message=f"Upload checkpoint at step {step}",
+                )
+                print(f"[Hub] Push successful ✅")
+            except Exception as e:
+                print(f"[Hub] Push failed: {e}")
 
 
 @torch.no_grad()
