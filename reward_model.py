@@ -165,7 +165,7 @@ class RewardConfig:
     reward_format_weight: float = 0.3      # บังคับ Tag ให้เข้มข้นขึ้น
     repetition_ngram_size: int = 4
     repetition_threshold: float = 0.2      # ลด Threshold ลงเพื่อให้ตรวจเจอความซ้ำได้ไวขึ้น
-    max_think_tokens: int = 512            # ลดจาก 768 เหลือ 512 เพื่อให้คิดสั้นและตรงประเด็น
+    max_think_tokens: int = 4096            # ปรับเพิ่มเป็น 4096 ตามที่คุณขอ
     max_response_tokens: int = 256
     device: str = "cuda"
     dtype: torch.dtype = torch.bfloat16

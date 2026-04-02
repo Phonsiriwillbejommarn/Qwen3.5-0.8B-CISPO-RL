@@ -24,7 +24,7 @@ reward_format_weight: 0.3      # บังคับ Tag ให้เข้มข
 # Anti-repetition config
 repetition_ngram_size: 4       # n-gram size for repetition detection (4-gram)
 repetition_threshold: 0.2      # ปรับจาก 0.15 เป็น 0.2 (ดักลูปเร็วขึ้น)
-max_think_tokens: 512          # ลดจาก 6144 เหลือ 512 เพื่อให้คิดสั้นและตรงประเด็น (สำคัญมาก!)
+max_think_tokens: 4096          # ปรับเป็น 4096 ตามที่คุณขอ (พื้นที่กว้างขึ้น)
 max_response_tokens: 256       # Target max tokens for response section
 
 # ─── Training ─────────────────────────────────────────────────────────────────
