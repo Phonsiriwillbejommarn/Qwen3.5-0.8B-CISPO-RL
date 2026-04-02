@@ -381,6 +381,7 @@ def _save_checkpoint(ckpt_dir: Path, model, optimizer, scheduler, step: int, met
                     repo_id=hub_model_id,
                     repo_type="model",
                     token=hub_token,
+                    path_in_repo=ckpt_dir.name, # เซฟเป็นโฟลเดอร์ checkpoint-X บน Hub ครบชุด
                     commit_message=f"Upload checkpoint at step {step}",
                 )
                 print(f"[Hub] Push successful ✅")
