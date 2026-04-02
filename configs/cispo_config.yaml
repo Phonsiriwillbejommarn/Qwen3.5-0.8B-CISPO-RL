@@ -1,0 +1,97 @@
+# CISPO Training Configuration
+# MiniMaxAI CISPO for Qwen3.5-0.8B-Distillation-Phase2
+
+# ─── Models ───────────────────────────────────────────────────────────────────
+policy_model_name: "Phonsiri/Qwen3.5-0.8B-Distillation-Phase2"
+judge_model_name: "Qwen/Qwen3.5-9B"
+output_dir: "./outputs/cispo_run_001"
+run_name: "cispo-qwen3.5-0.8b-rl-v1"
+
+# ─── CISPO Algorithm ──────────────────────────────────────────────────────────
+epsilon_high: 5.0          # Upper clip bound for IS weights (ε_high)
+kl_coeff: 0.001            # KL divergence penalty coefficient  
+group_size: 4              # Number of samples per prompt (G) for group-relative advantage (Optimized)
+temperature: 1.0           # Sampling temperature for rollouts
+top_p: 0.95
+top_k: 50
+
+# ─── Reward Weights ───────────────────────────────────────────────────────────
+reward_judge_weight: 1.0       # Weight for AI Judge reward (Qwen3.5-9B)
+reward_length_weight: 0.1      # Weight for length efficiency reward
+reward_repetition_weight: 0.6  # Penalty weight for repetitive output (Increased for "no repetition")
+reward_format_weight: 0.1      # Reward for correct <think>...</think> format
+
+# Anti-repetition config
+repetition_ngram_size: 4       # n-gram size for repetition detection (4-gram)
+repetition_threshold: 0.15      # Overlap ratio threshold (Lowered to catch loops early)
+max_think_tokens: 6144          # Target max tokens for thinking section (Increased for "deeper thinking")
+max_response_tokens: 1024       # Target max tokens for response section
+
+# ─── Training ─────────────────────────────────────────────────────────────────
+learning_rate: 5.0e-7
+warmup_steps: 10
+num_train_epochs: 3
+max_steps: 1000              # Override epochs if set (set -1 to use epochs)
+save_steps: 50
+eval_steps: 25
+logging_steps: 5
+
+# Batch sizes (H100 80GB — full precision)
+per_device_train_batch_size: 1   # prompts per step (Cloud optimized)
+gradient_accumulation_steps: 8   # effective batch = 8 prompts * G=4 = 32 responses
+dataloader_num_workers: 4
+
+# ─── Generation ───────────────────────────────────────────────────────────────
+max_new_tokens: 8192           # Max tokens to generate per rollout (reasoning mode)
+max_prompt_length: 512         # Max prompt tokens
+
+# ─── Precision ────────────────────────────────────────────────────────────────
+bf16: true                     # Use bfloat16 (H100 native)
+tf32: true                     # Enable TF32 for matmul on Ampere/H100
+gradient_checkpointing: false  # Not needed on H100 for 0.8B model
+
+# ─── Dataset ──────────────────────────────────────────────────────────────────
+# Options:
+#   "nohurry/Opus-4.6-Reasoning-3000x-filtered" — Opus 4.6 reasoning (2326 rows) ← ใช้ตัวนี้
+#   "openai/gsm8k"                               — Math reasoning (English)
+#   "juletxara/thai_alpaca_52k"                  — Thai general QA
+#   "custom"                                     — Load from local JSONL
+dataset_name: "nohurry/Opus-4.6-Reasoning-3000x-filtered"
+dataset_split: "train"
+custom_data_path: null          # e.g., "./data/my_dataset.jsonl"
+max_samples: null               # null = use all 2326 rows
+
+# Text format — "opus_reasoning" | "gsm8k" | "alpaca" | "thai_multihop" | "raw"
+dataset_format: "opus_reasoning"
+
+# Mixed-mode thinking: สุ่มเปิด/ปิดโหมดคิดต่อ sample (ตาม SFT distribution)
+# 0.8 = 80% เปิด Thinking, 20% ปิด (ตอบตรงแต่ Judge ยังให้คะแนนความลึก)
+thinking_ratio: 0.8
+
+# ─── Judge Model Config ───────────────────────────────────────────────────────
+judge_max_new_tokens: 128
+judge_temperature: 0.1
+judge_batch_size: 1            # Reduced for stability with 8k tokens
+
+# ─── Logging ──────────────────────────────────────────────────────────────────
+use_wandb: true
+wandb_project: "cispo-qwen3.5-rl"
+report_to: "wandb"             # "wandb" | "tensorboard" | "none"
+
+# ─── Checkpointing ────────────────────────────────────────────────────────────
+save_total_limit: 3
+load_best_model_at_end: false
+resume_from_checkpoint: null   # path to checkpoint dir, or null
+
+# ─── HuggingFace Hub ──────────────────────────────────────────────────────────
+push_to_hub: true
+hub_model_id: "Phonsiri/Qwen3.5-0.8B-CISPO-RL-v1"   # สร้าง repo ใหม่อัตโนมัติ
+hub_private: false                                     # true = private repo
+hub_push_every_n_steps: 50       # push checkpoint ทุก N steps (เดียวกับ save_steps)
+hub_push_optimizer: true         # push optimizer.pt ด้วย (เพื่อ resume)
+hub_token: null                  # null = ใช้จาก HF_TOKEN env var หรือ huggingface-cli login
+
+# ─── Advanced ─────────────────────────────────────────────────────────────────
+seed: 42
+deepspeed_config: null         # null for single GPU, or path to ds_config.json
+fsdp: ""                       # Leave empty for single GPU
