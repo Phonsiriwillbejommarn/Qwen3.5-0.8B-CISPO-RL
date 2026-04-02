@@ -102,10 +102,19 @@ def main():
 
     # ─── Policy Model ───
     print(f"\n[Policy] Loading: {cfg['policy_model_name']}")
-    policy_tokenizer = AutoTokenizer.from_pretrained(
-        cfg["policy_model_name"],
-        trust_remote_code=True,
-    )
+    try:
+        policy_tokenizer = AutoTokenizer.from_pretrained(
+            cfg["policy_model_name"],
+            trust_remote_code=True,
+        )
+    except ValueError:
+        # แก้ไข ValueError: Tokenizer class TokenizersBackend does not exist
+        print(f"[Warning] Tokenizer Error detected. Falling back to official Qwen3.5-0.8B tokenizer.")
+        policy_tokenizer = AutoTokenizer.from_pretrained(
+            "Qwen/Qwen3.5-0.8B",
+            trust_remote_code=True,
+        )
+
     if policy_tokenizer.pad_token is None:
         policy_tokenizer.pad_token = policy_tokenizer.eos_token
 
