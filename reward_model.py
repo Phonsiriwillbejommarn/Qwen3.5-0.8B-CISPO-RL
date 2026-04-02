@@ -28,6 +28,7 @@ Evaluate based on:
 1. Correctness — Is the answer accurate and logically sound?
 2. Helpfulness — Does it directly address the question?
 3. Coherence — Is the reasoning clear and non-repetitive?
+4. Depth of Reasoning — Be extremely critical. If the logic is shallow or skips steps, even if the final answer is correct, you MUST lower the score significantly.
 
 Return ONLY a single float score between 0.0 and 1.0 on its own line.
 Do not add any explanation. Only output the number."""
@@ -92,13 +93,17 @@ def compute_format_reward(response: str) -> float:
     )
 
     score = 0.0
-    if has_think_open:
-        score += 0.3
-    if has_think_close:
-        score += 0.3
+    if has_think_open: score += 0.3
+    if has_think_close: score += 0.3
     if has_think_open and has_think_close and has_content_after_think:
         score += 0.4
-    return score
+    
+    # ─── Strict Penalty ───
+    # ถ้ามีแท็กเปิดแต่ไม่มีแท็กปิด (ลืมจบการคิด) → หักคะแนน 0.5
+    if has_think_open and not has_think_close:
+        score -= 0.5
+        
+    return max(score, 0.0)  # กันคะแนนติดลบ
 
 
 # ─────────────────────────────────────────────

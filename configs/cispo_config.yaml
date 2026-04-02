@@ -32,8 +32,8 @@ learning_rate: 5.0e-7
 warmup_steps: 10
 num_train_epochs: 3
 max_steps: 1000              # Override epochs if set (set -1 to use epochs)
-save_steps: 10               # พุชและเซฟทุก 25 steps ตามที่คุณขอ
-eval_steps: 10
+save_steps: 5                # พุชและเซฟทุก 5 steps ตามที่คุณขอ (บ่อยขึ้น)
+eval_steps: 5
 logging_steps: 1             # ดู log ทุก 1 step
 
 # Batch sizes (H100 80GB — full precision)
@@ -87,7 +87,7 @@ resume_from_checkpoint: null   # path to checkpoint dir, or null
 push_to_hub: true
 hub_model_id: "Phonsiri/Qwen3.5-0.8B-CISPO-RL-v1"   # สร้าง repo ใหม่อัตโนมัติ
 hub_private: false                                     # true = private repo
-hub_push_every_n_steps: 25       # push checkpoint ทุก 25 steps (ตามที่คุณขอ)
+hub_push_every_n_steps: 5        # push checkpoint ทุก 5 steps (ตามที่คุณขอ)
 hub_push_optimizer: true         # push optimizer.pt ด้วย (เพื่อ resume)
 hub_token: null                  # null = ใช้จาก HF_TOKEN env var หรือ huggingface-cli login
 
