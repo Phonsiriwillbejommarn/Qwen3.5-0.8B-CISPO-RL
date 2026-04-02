@@ -101,14 +101,23 @@ def main():
             config=cfg,
         )
 
+    # ─── Resume Checkpoint Logic ───
+    resume_path = cfg.get("resume_from_checkpoint")
+    start_step = 1
+    policy_model_path = cfg["policy_model_name"]
+    
+    if resume_path and Path(resume_path).exists():
+        print(f"[Resume] Found checkpoint at: {resume_path}")
+        policy_model_path = resume_path
+
     # ─── Policy Model ───
-    print(f"\n[Policy] Loading: {cfg['policy_model_name']}")
+    print(f"\n[Policy] Loading: {policy_model_path}")
     try:
         policy_tokenizer = AutoTokenizer.from_pretrained(
-            cfg["policy_model_name"],
+            policy_model_path,
             trust_remote_code=True,
         )
-    except ValueError:
+    except Exception:
         # แก้ไข ValueError: Tokenizer class TokenizersBackend does not exist
         print(f"[Warning] Tokenizer Error detected. Falling back to official Qwen3.5-0.8B tokenizer.")
         policy_tokenizer = AutoTokenizer.from_pretrained(
@@ -120,11 +129,11 @@ def main():
         policy_tokenizer.pad_token = policy_tokenizer.eos_token
 
     policy_model = AutoModelForCausalLM.from_pretrained(
-        cfg["policy_model_name"],
+        policy_model_path,
         torch_dtype=torch.bfloat16 if cfg.get("bf16", True) else torch.float32,
         device_map="cuda:0",        # Policy model บน GPU 0
         trust_remote_code=True,
-        attn_implementation="sdpa", # ใช้ SDPA (Flash Attention ไม่ available)
+        attn_implementation="sdpa", # ใช้ SDPA
     )
     policy_model.train()
 
@@ -215,19 +224,22 @@ def main():
     )
 
     # ─── Resume from checkpoint ───
-    start_step = 0
-    checkpoint_path = cfg.get("resume_from_checkpoint")
-    if checkpoint_path and Path(checkpoint_path).exists():
-        print(f"[Checkpoint] Resuming from: {checkpoint_path}")
-        state = torch.load(Path(checkpoint_path) / "trainer_state.pt", map_location="cpu")
-        trainer.global_step = state.get("global_step", 0)
-        start_step = trainer.global_step
-        optimizer.load_state_dict(state["optimizer"])
-        scheduler.load_state_dict(state["scheduler"])
-        policy_model.load_state_dict(
-            torch.load(Path(checkpoint_path) / "policy_model.pt", map_location="cpu")
-        )
-        print(f"[Checkpoint] Resumed at step {start_step}")
+    if resume_path and Path(resume_path).exists():
+        state_path = Path(resume_path) / "trainer_state.pt"
+        if state_path.exists():
+            print(f"[Checkpoint] Loading trainer state from: {state_path}")
+            state = torch.load(state_path, map_location="cpu")
+            
+            # โหลดสถานะ Optimizer และ Scheduler
+            optimizer.load_state_dict(state["optimizer"])
+            scheduler.load_state_dict(state["scheduler"])
+            
+            # ตั้งค่าก้าว (Step) ให้ต่อเนื่อง
+            start_step = state.get("global_step", 0)
+            trainer.global_step = start_step
+            print(f"[Checkpoint] Successfully resumed at step {start_step} ✅")
+        else:
+            print(f"[Warning] trainer_state.pt not found in {resume_path}. Starting from step 0.")
 
     # ─── Training Loop ───
     print(f"\n{'='*60}")
