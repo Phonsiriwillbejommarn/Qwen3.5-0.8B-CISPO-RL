@@ -80,9 +80,15 @@ def compute_repetition_penalty(text: str, ngram_size: int = 4, threshold: float 
 # ─────────────────────────────────────────────
 # Format Checker
 # ─────────────────────────────────────────────
-def compute_format_reward(response: str) -> float:
+def compute_format_reward(response: str, intended_thinking: bool = True) -> float:
     """
-    ให้ reward ถ้า response มี format <think>...</think> หรือ <tink>...</tink> ถูกต้อง
+    ให้ reward/penalty ตามโหมดการคิด:
+    1. ถ้าโหมดคิด (intended_thinking=True):
+       - มีแท็กเปิด/ปิด ครบถ้วน = Reward 1.0 (0.3+0.3+0.4)
+       - ลืมปิดแท็ก = Penalty -0.5
+    2. ถ้าโหมดตอบตรง (intended_thinking=False):
+       - ห้ามมีแท็ก <think> หรือ <tink> = Penalty -0.5
+       - ไม่มีแท็กเลย = Reward 1.0 (ถือว่าเชื่อฟังคำสั่ง)
     """
     has_think_open = "<think>" in response or "<tink>" in response
     has_think_close = "</think>" in response or "</tink>" in response
@@ -92,18 +98,24 @@ def compute_format_reward(response: str) -> float:
         re.search(r"</(think|tink)>\s*\S", response, re.DOTALL)
     )
 
-    score = 0.0
-    if has_think_open: score += 0.3
-    if has_think_close: score += 0.3
-    if has_think_open and has_think_close and has_content_after_think:
-        score += 0.4
-    
-    # ─── Strict Penalty ───
-    # ถ้ามีแท็กเปิดแต่ไม่มีแท็กปิด (ลืมจบการคิด) → หักคะแนน 0.5
-    if has_think_open and not has_think_close:
-        score -= 0.5
-        
-    return max(score, 0.0)  # กันคะแนนติดลบ
+    if intended_thinking:
+        # ─── โหมดคิด (Thinking Mode) ───
+        score = 0.0
+        if has_think_open: score += 0.3
+        if has_think_close: score += 0.3
+        if has_think_open and has_think_close and has_content_after_think:
+            score += 0.4
+            
+        # หักคะแนนถ้าลืมปิดแท็ก
+        if has_think_open and not has_think_close:
+            score -= 0.5
+        return max(score, 0.0)
+    else:
+        # ─── โหมดตอบตรง (Direct Mode) ───
+        # ถ้าเผลอพ่นแท็กออกมาทั้งที่ไม่ได้สั่งให้คิด -> หักคะแนน
+        if has_think_open or has_think_close:
+            return -0.5
+        return 1.0  # ตอบตรงตามสั่ง
 
 
 # ─────────────────────────────────────────────
@@ -255,15 +267,19 @@ class CISPORewardModel:
         self,
         questions: List[str],
         responses: List[str],
+        intended_thinking: List[bool] = None,
     ) -> List[float]:
         """คืน final reward เท่านั้น (สำหรับ logging)"""
-        rewards, _ = self.compute_rewards_with_components(questions, responses)
+        rewards, _ = self.compute_rewards_with_components(
+            questions, responses, intended_thinking=intended_thinking
+        )
         return rewards
 
     def compute_rewards_with_components(
         self,
         questions: List[str],
         responses: List[str],
+        intended_thinking: List[bool] = None,
     ) -> tuple:
         """
         คำนวณ final reward พร้อม component breakdown
@@ -278,7 +294,10 @@ class CISPORewardModel:
         final_rewards = []
         components = []
 
-        for question, response, judge_score in zip(questions, responses, judge_scores):
+        if intended_thinking is None:
+            intended_thinking = [True] * len(questions)
+
+        for question, response, judge_score, it_mode in zip(questions, responses, judge_scores, intended_thinking):
             # 2. Anti-repetition penalty
             rep_penalty = compute_repetition_penalty(
                 response,
@@ -286,7 +305,7 @@ class CISPORewardModel:
                 threshold=self.config.repetition_threshold,
             )
 
-            # 3. Length penalty (raw value, not multiplied by weight yet)
+            # 3. Length penalty
             len_reward = compute_length_reward(
                 response,
                 self.policy_tokenizer,
@@ -295,8 +314,8 @@ class CISPORewardModel:
             )
             length_penalty = max(0.0, -len_reward)   # แปลงเป็น penalty (≥0)
 
-            # 4. Format reward
-            fmt_reward = compute_format_reward(response)
+            # 4. Format reward (mode-aware)
+            fmt_reward = compute_format_reward(response, intended_thinking=it_mode)
 
             # Final composite reward
             final_reward = (

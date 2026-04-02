@@ -366,19 +366,24 @@ class CISPOTrainer:
         self,
         prompts: List[str],
         formatted_prompts: List[str],
+        intended_thinking: List[bool] = None,
     ) -> Dict[str, float]:
+
+        if intended_thinking is None:
+            intended_thinking = [True] * len(prompts)
 
         # ── 1. Rollout ──
         all_responses, all_input_ids, all_prompt_lengths = self.generate_responses(
             formatted_prompts
         )
         all_prompts_rep = [p for p in prompts for _ in range(self.group_size)]
+        all_thinking_rep = [it for it in intended_thinking for _ in range(self.group_size)]
 
         # ── 2. Compute composite rewards via reward model ──
         # reward_model returns final scalar rewards ต่อ response
         # พร้อม component breakdown
         final_rewards, components = self.reward_model.compute_rewards_with_components(
-            all_prompts_rep, all_responses
+            all_prompts_rep, all_responses, intended_thinking=all_thinking_rep
         )
         # components: list of dict {"judge", "rep_penalty", "length_penalty"}
 

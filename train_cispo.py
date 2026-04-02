@@ -257,9 +257,10 @@ def main():
 
             prompts = batch["prompts"]
             formatted_prompts = batch["formatted_prompts"]
+            intended_thinking = batch.get("intended_thinking", [True] * len(prompts))
 
             # ── Train step ──
-            metrics = trainer.train_step(prompts, formatted_prompts)
+            metrics = trainer.train_step(prompts, formatted_prompts, intended_thinking)
             global_step = trainer.global_step
 
             # ── Logging ──

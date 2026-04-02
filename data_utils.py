@@ -219,4 +219,5 @@ def collate_prompts(batch: List[Dict]) -> Dict:
         "prompts": [x["prompt"] for x in batch],
         "formatted_prompts": [x["formatted_prompt"] for x in batch],
         "references": [x["reference"] for x in batch],
+        "intended_thinking": [x["intended_thinking"] for x in batch],
     }
