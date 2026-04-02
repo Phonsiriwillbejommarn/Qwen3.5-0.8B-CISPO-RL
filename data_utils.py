@@ -20,9 +20,10 @@ from datasets import load_dataset, Dataset
 # ─────────────────────────────────────────────────────────────
 SYSTEM_PROMPT = (
     "You are a helpful and thoughtful assistant. "
-    "Always think step by step inside <think>...</think> or <tink>...</tink> tags before answering. "
-    "Keep your reasoning concise and avoid repeating yourself. "
-    "After thinking, give your final answer clearly."
+    "Always think step-by-step inside <think>...</think> tags before answering. "
+    "Keep reasoning concise and avoid repeating logic. "
+    "Example: <think> 1+1=2. Answer is 2. </think> The answer is 2. "
+    "After thinking, provide your final response clearly."
 )
 
 
@@ -105,13 +106,12 @@ FORMAT_FUNCTIONS = {
 def build_chat_prompt(prompt: str, tokenizer, enable_thinking: bool = True) -> str:
     """
     สร้าง formatted chat prompt สำหรับ policy model
-    ใช้ tokenizer.apply_chat_template ถ้ามี
-
-    enable_thinking=True  → <think>\n               (โมเดลคิดแบบยาว)
-    enable_thinking=False → <think>\n\n</think>\n\n  (ตอบตรงแต่ Judge ยังให้คะแนนความลึก)
+    80% ใช้ SYSTEM_PROMPT, 20% ลองทำงานแบบไร้คำสั่ง (Autonomous Mode)
     """
+    current_system = "" if random.random() < 0.2 else SYSTEM_PROMPT
+    
     messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "system", "content": current_system},
         {"role": "user", "content": prompt},
     ]
     try:

@@ -160,12 +160,12 @@ class RewardConfig:
     judge_temperature: float = 0.1
     judge_batch_size: int = 8
     reward_judge_weight: float = 1.0
-    reward_length_weight: float = 0.1
-    reward_repetition_weight: float = 0.3
-    reward_format_weight: float = 0.1
+    reward_length_weight: float = 0.2  # เพิ่มน้ำหนักการคุมความยาว
+    reward_repetition_weight: float = 0.6  # หักคะแนนซ้ำหนักขึ้นเท่าตัว
+    reward_format_weight: float = 0.3      # บังคับ Tag ให้เข้มข้นขึ้น
     repetition_ngram_size: int = 4
-    repetition_threshold: float = 0.3
-    max_think_tokens: int = 768
+    repetition_threshold: float = 0.2      # ลด Threshold ลงเพื่อให้ตรวจเจอความซ้ำได้ไวขึ้น
+    max_think_tokens: int = 512            # ลดจาก 768 เหลือ 512 เพื่อให้คิดสั้นและตรงประเด็น
     max_response_tokens: int = 256
     device: str = "cuda"
     dtype: torch.dtype = torch.bfloat16

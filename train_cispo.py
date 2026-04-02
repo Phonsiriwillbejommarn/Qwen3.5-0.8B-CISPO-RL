@@ -233,9 +233,18 @@ def main():
             print(f"[Checkpoint] Loading trainer state from: {state_path}")
             state = torch.load(state_path, map_location="cpu")
             
-            # โหลดสถานะ Optimizer และ Scheduler
-            optimizer.load_state_dict(state["optimizer"])
-            scheduler.load_state_dict(state["scheduler"])
+            # โหลดสถานะ Optimizer และ Scheduler (รองรับทั้งแบบแยกไฟล์และแบบรวม)
+            opt_path = Path(resume_path) / "optimizer.pt"
+            sch_path = Path(resume_path) / "scheduler.pt"
+            
+            if opt_path.exists() and sch_path.exists():
+                print(f"[Checkpoint] Loading separate optimizer and scheduler states...")
+                optimizer.load_state_dict(torch.load(opt_path, map_location="cpu"))
+                scheduler.load_state_dict(torch.load(sch_path, map_location="cpu"))
+            elif "optimizer" in state:
+                print(f"[Checkpoint] Loading combined optimizer/scheduler from legacy trainer_state.pt...")
+                optimizer.load_state_dict(state["optimizer"])
+                scheduler.load_state_dict(state["scheduler"])
             
             # ตั้งค่าก้าว (Step) ให้ต่อเนื่อง
             start_step = state.get("global_step", 0)
@@ -356,12 +365,16 @@ def find_latest_checkpoint(output_dir: Path) -> Optional[str]:
 def _save_checkpoint(ckpt_dir: Path, model, tokenizer, optimizer, scheduler, step: int, metrics: Dict, cfg: Dict):
     ckpt_dir.mkdir(parents=True, exist_ok=True)
     model.save_pretrained(ckpt_dir)
-    tokenizer.save_pretrained(ckpt_dir) # เพิ่มการเซฟ Tokenizer ที่นี่ ✅
+    tokenizer.save_pretrained(ckpt_dir)
+    
+    # เซฟแยกไฟล์เพื่อให้ดูเป็นระเบียบบน HF ✅
+    torch.save(optimizer.state_dict(), ckpt_dir / "optimizer.pt")
+    torch.save(scheduler.state_dict(), ckpt_dir / "scheduler.pt")
+    
+    # เก็บเฉพาะ metadata ใน trainer_state.pt
     torch.save(
         {
             "global_step": step,
-            "optimizer": optimizer.state_dict(),
-            "scheduler": scheduler.state_dict(),
             "metrics": metrics,
         },
         ckpt_dir / "trainer_state.pt",

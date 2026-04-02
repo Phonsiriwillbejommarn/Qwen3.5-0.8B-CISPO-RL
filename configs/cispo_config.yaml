@@ -9,7 +9,7 @@ run_name: "cispo-qwen3.5-0.8b-rl-v1"
 
 # ─── CISPO Algorithm ──────────────────────────────────────────────────────────
 epsilon_high: 5.0          # Upper clip bound for IS weights (ε_high)
-kl_coeff: 0.001            # KL divergence penalty coefficient  
+kl_coeff: 0.002            # เพิ่มจาก 0.001 เป็น 0.002 เพื่อคุมสติให้น้องไม่เพ้อหลุดกรอบ
 group_size: 4              # Number of samples per prompt (G) for group-relative advantage (Optimized)
 temperature: 1.0           # Sampling temperature for rollouts
 top_p: 0.95
@@ -17,15 +17,15 @@ top_k: 50
 
 # ─── Reward Weights ───────────────────────────────────────────────────────────
 reward_judge_weight: 1.0       # Weight for AI Judge reward (Qwen3.5-9B)
-reward_length_weight: 0.1      # Weight for length efficiency reward
-reward_repetition_weight: 0.6  # Penalty weight for repetitive output (Increased for "no repetition")
-reward_format_weight: 0.1      # Reward for correct <think>...</think> format
+reward_length_weight: 0.2      # เพิ่มน้ำหนักการคุมความยาว
+reward_repetition_weight: 0.8  # หักคะแนนซ้ำหนักขึ้น (จาก 0.6 เป็น 0.8)
+reward_format_weight: 0.3      # บังคับ Tag ให้เข้มข้นขึ้น (จาก 0.1 เป็น 0.3)
 
 # Anti-repetition config
 repetition_ngram_size: 4       # n-gram size for repetition detection (4-gram)
-repetition_threshold: 0.15      # Overlap ratio threshold (Lowered to catch loops early)
-max_think_tokens: 6144          # Target max tokens for thinking section (Increased for "deeper thinking")
-max_response_tokens: 1024       # Target max tokens for response section
+repetition_threshold: 0.2      # ปรับจาก 0.15 เป็น 0.2 (ดักลูปเร็วขึ้น)
+max_think_tokens: 512          # ลดจาก 6144 เหลือ 512 เพื่อให้คิดสั้นและตรงประเด็น (สำคัญมาก!)
+max_response_tokens: 256       # Target max tokens for response section
 
 # ─── Training ─────────────────────────────────────────────────────────────────
 learning_rate: 5.0e-7
