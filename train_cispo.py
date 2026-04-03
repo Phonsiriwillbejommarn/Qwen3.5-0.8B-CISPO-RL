@@ -257,7 +257,7 @@ def main():
     print(f"\n{'='*60}")
     print(f"  CISPO RL Training")
     print(f"  Policy : {cfg['policy_model_name']}")
-    print(f"  Judge  : {cfg['judge_model_name']}")
+    print(f"  Judges : {cfg.get('judge_models', [])}")
     print(f"  Steps  : {total_steps}  |  Group size: {cfg.get('group_size', 8)}")
     print(f"  ε_high : {cfg.get('epsilon_high', 5.0)}  |  β_kl: {cfg.get('kl_coeff', 0.001)}")
     print(f"{'='*60}\n")
