@@ -4,8 +4,8 @@
 # ─── Models ───────────────────────────────────────────────────────────────────
 policy_model_name: "Phonsiri/Qwen3.5-0.8B-Distillation-Phase2"
 judge_model_name: "Qwen/Qwen3.5-9B"
-output_dir: "./outputs/cispo_run_001"
-run_name: "cispo-qwen3.5-0.8b-rl-v1"
+output_dir: "./outputs/cispo_run_002"
+run_name: "cispo-qwen3.5-0.8b-rl-v2"
 
 # ─── CISPO Algorithm ──────────────────────────────────────────────────────────
 epsilon_high: 5.0          # Upper clip bound for IS weights (ε_high)
@@ -85,7 +85,7 @@ resume_from_checkpoint: null   # path to checkpoint dir, or null
 
 # ─── HuggingFace Hub ──────────────────────────────────────────────────────────
 push_to_hub: true
-hub_model_id: "Phonsiri/Qwen3.5-0.8B-CISPO-RL-v1"   # สร้าง repo ใหม่อัตโนมัติ
+hub_model_id: "Phonsiri/Qwen3.5-0.8B-CISPO-RL-v2"   # สร้าง repo ใหม่อัตโนมัติ (เริ่มใหม่ทั้งหมด)
 hub_private: false                                     # true = private repo
 hub_push_every_n_steps: 5        # push checkpoint ทุก 5 steps (ตามที่คุณขอ)
 hub_push_optimizer: true         # push optimizer.pt ด้วย (เพื่อ resume)
