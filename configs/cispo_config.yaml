@@ -19,9 +19,9 @@ top_k: 50
 
 # ─── Reward Weights ───────────────────────────────────────────────────────────
 reward_judge_weight: 1.0       # Weight for AI Judge reward (Qwen3.5-9B)
-reward_length_weight: 0.2      # เพิ่มน้ำหนักการคุมความยาว
-reward_repetition_weight: 0.8  # หักคะแนนซ้ำหนักขึ้น (จาก 0.6 เป็น 0.8)
-reward_format_weight: 1.0      # บังคับ Tag ให้เข้มข้นขึ้น (จาก 0.3 เป็น 1.0 แบบบังคับตายตัว)
+reward_length_weight: 0.5      # เพิ่มน้ำหนักการคุมความยาว (ความเพ้อ) ให้หนักขึ้น
+reward_repetition_weight: 1.0  # หักคะแนนซ้ำหนักสุดๆ
+reward_format_weight: 2.0      # บังคับ Tag โหดสุดๆ (พลาดทีเดียวติดลบ 2.0!)
 
 # Anti-repetition config
 repetition_ngram_size: 3       # ดักลูปคำซ้ำตั้งแต่ 3 คำติด (ไวขึ้นกว่า 4 คำ)
