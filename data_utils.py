@@ -111,9 +111,14 @@ FORMAT_FUNCTIONS = {
 def build_chat_prompt(prompt: str, tokenizer, enable_thinking: bool = True) -> str:
     """
     สร้าง formatted chat prompt สำหรับ policy model 
-    เชื่อมโยงคำสั่งกับโหมดที่ตั้งค่าไว้อย่างชัดเจน
+    เชื่อมโยงคำสั่งกับโหมดที่ตั้งค่าไว้ พร้อมเทรนความเป็นอิสระ (Autonomous Reasoning)
     """
-    current_system = SYSTEM_PROMPT if enable_thinking else DIRECT_SYSTEM_PROMPT
+    if enable_thinking:
+        # Autonomous Dropout: สุ่มปิด 20% เพื่อบังคับให้มันจำว่า "ถึงไม่มีใครสั่ง ก็ต้องคิดใน <think>"
+        current_system = "" if random.random() < 0.2 else SYSTEM_PROMPT
+    else:
+        # โหมดตอบตรง (Direct Mode)
+        current_system = DIRECT_SYSTEM_PROMPT
     
     messages = [
         {"role": "system", "content": current_system},
