@@ -26,6 +26,11 @@ SYSTEM_PROMPT = (
     "After thinking, provide your final response clearly."
 )
 
+DIRECT_SYSTEM_PROMPT = (
+    "You are a helpful assistant. Provide a direct, concise answer to the user's question. "
+    "Do NOT use any <think> tags or internal reasoning steps. Answer directly."
+)
+
 
 # ─────────────────────────────────────────────────────────────
 # Formatters per dataset type
@@ -105,10 +110,10 @@ FORMAT_FUNCTIONS = {
 # ─────────────────────────────────────────────────────────────
 def build_chat_prompt(prompt: str, tokenizer, enable_thinking: bool = True) -> str:
     """
-    สร้าง formatted chat prompt สำหรับ policy model
-    80% ใช้ SYSTEM_PROMPT, 20% ลองทำงานแบบไร้คำสั่ง (Autonomous Mode)
+    สร้าง formatted chat prompt สำหรับ policy model 
+    เชื่อมโยงคำสั่งกับโหมดที่ตั้งค่าไว้อย่างชัดเจน
     """
-    current_system = "" if random.random() < 0.2 else SYSTEM_PROMPT
+    current_system = SYSTEM_PROMPT if enable_thinking else DIRECT_SYSTEM_PROMPT
     
     messages = [
         {"role": "system", "content": current_system},
