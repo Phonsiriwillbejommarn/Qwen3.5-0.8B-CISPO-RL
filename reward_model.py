@@ -29,6 +29,7 @@ Evaluate based on:
 2. Helpfulness — Does it directly address the question?
 3. Coherence — Is the reasoning clear and non-repetitive?
 4. Depth of Reasoning — Be extremely critical. If the logic is shallow or skips steps, even if the final answer is correct, you MUST lower the score significantly.
+5. Anti-Hallucination — If the model starts rambling, repeating itself endlessly, generating unrelated languages (e.g., Russian, Polish, etc.), or failing to close its thoughts coherently, you MUST score it 0.0 immediately.
 
 Return ONLY a single float score between 0.0 and 1.0 on its own line.
 Do not add any explanation. Only output the number."""
@@ -95,26 +96,19 @@ def compute_format_reward(response: str, intended_thinking: bool = True) -> floa
     )
     if intended_thinking:
         # ─── โหมดคิด (Thinking Mode) ───
-        score = 0.0
-        
-        # หักคะแนนหนักถ้า "ไม่มีแท็กเปิด" (ขี้เกียจลืมใส่แท็ก) -> หัก -0.5 ทันที
+        # Zero Tolerance: พลาดจุดเดียว โดน -1.0 ไม่มีการให้คะแนนโบนัสปลอบใจ
         if not has_think_open:
-            return -0.5
+            return -1.0  # ลืมเปิดแท็ก
+        if not has_think_close:
+            return -1.0  # เพ้อจนลืมปิดแท็ก
+        if not has_content_after_think:
+            return -1.0  # ปิดแท็กแต่ไม่ตอบอะไรเลย
             
-        if has_think_open: score += 0.3
-        if has_think_close: score += 0.3
-        if has_think_open and has_think_close and has_content_after_think:
-            score += 0.4
-            
-        # หักคะแนนถ้าลืมปิดแท็ก
-        if has_think_open and not has_think_close:
-            score -= 0.5
-        return max(score, -0.5)
+        return 1.0  # ผ่านแบบสมบูรณ์แบบ
     else:
         # ─── โหมดตอบตรง (Direct Mode) ───
-        # ถ้าเผลอพ่นแท็กออกมาทั้งที่ไม่ได้สั่งให้คิด -> หักคะแนน
         if has_think_open or has_think_close:
-            return -0.5
+            return -1.0
         return 1.0  # ตอบตรงตามสั่ง
 
 

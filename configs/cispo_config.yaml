@@ -19,10 +19,10 @@ top_k: 50
 reward_judge_weight: 1.0       # Weight for AI Judge reward (Qwen3.5-9B)
 reward_length_weight: 0.2      # เพิ่มน้ำหนักการคุมความยาว
 reward_repetition_weight: 0.8  # หักคะแนนซ้ำหนักขึ้น (จาก 0.6 เป็น 0.8)
-reward_format_weight: 0.3      # บังคับ Tag ให้เข้มข้นขึ้น (จาก 0.1 เป็น 0.3)
+reward_format_weight: 1.0      # บังคับ Tag ให้เข้มข้นขึ้น (จาก 0.3 เป็น 1.0 แบบบังคับตายตัว)
 
 # Anti-repetition config
-repetition_ngram_size: 4       # n-gram size for repetition detection (4-gram)
+repetition_ngram_size: 3       # ดักลูปคำซ้ำตั้งแต่ 3 คำติด (ไวขึ้นกว่า 4 คำ)
 repetition_threshold: 0.2      # ปรับจาก 0.15 เป็น 0.2 (ดักลูปเร็วขึ้น)
 max_think_tokens: 4096          # ปรับเป็น 4096 ตามที่คุณขอ (พื้นที่กว้างขึ้น)
 max_response_tokens: 256       # Target max tokens for response section
