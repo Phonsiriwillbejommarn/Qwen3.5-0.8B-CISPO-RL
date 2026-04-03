@@ -3,7 +3,7 @@
 
 # ─── Models ───────────────────────────────────────────────────────────────────
 policy_model_name: "Phonsiri/Qwen3.5-0.8B-Distillation-Phase2"
-judge_model_name: "Qwen/Qwen2.5-7B-Instruct"  # เปลี่ยนเป็นรุ่น Instruct ที่ฉลาดและให้คะแนนได้แม่นยำกว่ามาก
+judge_model_name: "Qwen/Qwen3.5-9B"
 output_dir: "./outputs/cispo_run_002"
 run_name: "cispo-qwen3.5-0.8b-rl-v2"
 
@@ -25,7 +25,7 @@ reward_format_weight: 1.0      # บังคับ Tag ให้เข้มข
 repetition_ngram_size: 3       # ดักลูปคำซ้ำตั้งแต่ 3 คำติด (ไวขึ้นกว่า 4 คำ)
 repetition_threshold: 0.2      # ปรับจาก 0.15 เป็น 0.2 (ดักลูปเร็วขึ้น)
 max_think_tokens: 4096          # ปรับเป็น 4096 ตามที่คุณขอ (พื้นที่กว้างขึ้น)
-max_response_tokens: 256       # Target max tokens for response section
+max_response_tokens: 2560       # Target max tokens for response section
 
 # ─── Training ─────────────────────────────────────────────────────────────────
 learning_rate: 5.0e-7
