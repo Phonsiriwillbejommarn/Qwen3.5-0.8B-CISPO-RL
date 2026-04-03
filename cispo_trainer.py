@@ -284,6 +284,7 @@ class CISPOTrainer:
     def __init__(
         self,
         policy_model: PreTrainedModel,
+        reference_model: PreTrainedModel,
         policy_tokenizer: PreTrainedTokenizer,
         reward_model,
         config: Dict,
@@ -291,6 +292,7 @@ class CISPOTrainer:
         scheduler=None,
     ):
         self.policy = policy_model
+        self.reference = reference_model
         self.tokenizer = policy_tokenizer
         self.reward_model = reward_model
         self.config = config
@@ -429,13 +431,13 @@ class CISPOTrainer:
         padded_ids = padded_ids.to(self.policy.device)
         attn_masks = attn_masks.to(self.policy.device)
 
-        # ── 5. Old log probs (reference, no grad) ──
+        # ── 5. Old log probs (Reference Model, no grad) ──
+        # ใช้ Reference Model คำนวณความน่าจะเป็นดั้งเดิม (สำคัญมาก! ไม่งั้น KL=0 ตลอด)
         with torch.no_grad():
-            self.policy.eval()
+            self.reference.eval()
             old_logprobs_list, _ = get_token_logprobs(
-                self.policy, padded_ids, attn_masks, all_prompt_lengths, no_grad=True
+                self.reference, padded_ids, attn_masks, all_prompt_lengths, no_grad=True
             )
-            self.policy.train()
 
         # ── 6. Current log probs (with grad) ──
         current_logprobs_list, _ = get_token_logprobs(

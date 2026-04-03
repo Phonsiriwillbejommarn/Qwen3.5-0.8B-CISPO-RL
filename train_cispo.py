@@ -152,6 +152,20 @@ def main():
         torch.backends.cudnn.allow_tf32 = True
     print(f"[Policy] Loaded ✅  |  Parameters: {sum(p.numel() for p in policy_model.parameters()):,}")
 
+    # ─── Reference Model (SFT Anchor) ───
+    # โหลดโมเดลตัวตั้งต้นเพื่อใช้คำนวณ KL & Old Logprobs (ไม่ให้อัปเดตน้ำหนัก)
+    print(f"\n[RefModel] Loading SFT Baseline: {cfg['policy_model_name']}")
+    ref_model = AutoModelForCausalLM.from_pretrained(
+        cfg["policy_model_name"], # โหลดจากตัว SFT ดั้งเดิมเสมอ ไม่ว่าจะ resume ก็ตาม
+        torch_dtype=torch.bfloat16 if cfg.get("bf16", True) else torch.float32,
+        device_map="cuda:0",      # แชร์ GPU กับ Policy (เพราะ 0.8B เล็กมาก)
+        trust_remote_code=True,
+        attn_implementation="sdpa",
+    )
+    ref_model.eval()
+    ref_model.requires_grad_(False) # แช่แข็งน้ำหนัก 100%
+    print(f"[RefModel] Loaded ✅  (Frozen)")
+
     # ─── Judge/Reward Model (Ensemble) ───
     reward_cfg = RewardConfig(
         judge_models=cfg.get("judge_models", ["Qwen/Qwen3.5-9B", "google/gemma-4-E4B-it"]),
@@ -219,6 +233,7 @@ def main():
     # ─── CISPO Trainer ───
     trainer = CISPOTrainer(
         policy_model=policy_model,
+        reference_model=ref_model,  # ส่ง ref_model ให้ Trainer
         policy_tokenizer=policy_tokenizer,
         reward_model=reward_model,
         config=cfg,
