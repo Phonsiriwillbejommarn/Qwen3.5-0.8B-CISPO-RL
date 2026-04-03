@@ -152,9 +152,9 @@ def main():
         torch.backends.cudnn.allow_tf32 = True
     print(f"[Policy] Loaded ✅  |  Parameters: {sum(p.numel() for p in policy_model.parameters()):,}")
 
-    # ─── Judge/Reward Model (Qwen3.5-9B) ───
+    # ─── Judge/Reward Model (Ensemble) ───
     reward_cfg = RewardConfig(
-        judge_model_name=cfg["judge_model_name"],
+        judge_models=cfg.get("judge_models", ["Qwen/Qwen3.5-9B", "google/gemma-4-E4B-it"]),
         judge_max_new_tokens=cfg.get("judge_max_new_tokens", 128),
         judge_temperature=cfg.get("judge_temperature", 0.1),
         judge_batch_size=cfg.get("judge_batch_size", 8),

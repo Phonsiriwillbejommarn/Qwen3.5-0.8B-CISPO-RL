@@ -142,9 +142,10 @@ def compute_length_reward(
 # ─────────────────────────────────────────────
 # AI Judge Reward Model
 # ─────────────────────────────────────────────
+from dataclasses import dataclass, field
 @dataclass
 class RewardConfig:
-    judge_model_name: str = "google/gemma-4-E4B-it"
+    judge_models: list = field(default_factory=lambda: ["Qwen/Qwen3.5-9B", "google/gemma-4-E4B-it"])
     judge_max_new_tokens: int = 128
     judge_temperature: float = 0.1
     judge_batch_size: int = 8
@@ -173,22 +174,31 @@ class CISPORewardModel:
         self.config = config
         self.policy_tokenizer = policy_tokenizer
 
-        print(f"[RewardModel] Loading judge model: {config.judge_model_name}")
-        self.judge_tokenizer = AutoTokenizer.from_pretrained(
-            config.judge_model_name,
-            trust_remote_code=True,
-        )
-        self.judge_model = AutoModelForCausalLM.from_pretrained(
-            config.judge_model_name,
-            torch_dtype=config.dtype,
-            device_map="auto",
-            trust_remote_code=True,
-        )
-        self.judge_model.eval()
-        print(f"[RewardModel] Judge model loaded ✅")
+        # โหลดคณะกรรมการทั้งหมด (Ensemble)
+        self.judges = []
+        for model_name in self.config.judge_models:
+            print(f"[RewardModel] Loading judge model: {model_name}")
+            tokenizer = AutoTokenizer.from_pretrained(
+                model_name,
+                trust_remote_code=True,
+            )
+            # สำคัญ: โมเดลบางตัวไม่มี pad_token 
+            if tokenizer.pad_token is None:
+                tokenizer.pad_token = tokenizer.eos_token
+                
+            model = AutoModelForCausalLM.from_pretrained(
+                model_name,
+                torch_dtype=config.dtype,
+                device_map="auto",
+                trust_remote_code=True,
+            )
+            model.eval()
+            self.judges.append((model_name, tokenizer, model))
+            
+        print(f"[RewardModel] All {len(self.judges)} judge models loaded successfully ✅")
 
-    def _build_judge_prompt(self, question: str, response: str) -> str:
-        """สร้าง prompt สำหรับ judge model"""
+    def _build_judge_prompt(self, question: str, response: str, tokenizer) -> str:
+        """สร้าง prompt สำหรับ judge model แต่ละตัวตาม Chat Template ของมัน"""
         messages = [
             {"role": "system", "content": JUDGE_SYSTEM_PROMPT},
             {
@@ -198,51 +208,68 @@ class CISPORewardModel:
                 ),
             },
         ]
-        return self.judge_tokenizer.apply_chat_template(
-            messages, tokenize=False, add_generation_prompt=True
-        )
+        try:
+            return tokenizer.apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=True
+            )
+        except Exception:
+            # Fallback สำหรับ Base Model ที่ไม่มี Chat Template (เช่น Qwen 3.5 9B Base)
+            return f"{JUDGE_SYSTEM_PROMPT}\n\n{JUDGE_USER_TEMPLATE.format(question=question, response=response)}"
 
     @torch.no_grad()
     def _get_judge_scores(self, questions: List[str], responses: List[str]) -> List[float]:
         """
-        เรียก Qwen3.5-9B judge สำหรับ batch ของ (question, response)
+        เรียกคณะกรรมการทุกคนมาให้คะแนน แล้วหาค่าเฉลี่ย
         Returns: list of float scores [0.0, 1.0]
         """
-        scores = []
         batch_size = self.config.judge_batch_size
+        n_responses = len(questions)
+        all_model_scores = []
 
-        for i in range(0, len(questions), batch_size):
-            batch_q = questions[i : i + batch_size]
-            batch_r = responses[i : i + batch_size]
+        # วนลูปถามกรรมการทีละคน
+        for m_name, j_tokenizer, j_model in self.judges:
+            scores_for_this_model = []
+            
+            for i in range(0, n_responses, batch_size):
+                batch_q = questions[i : i + batch_size]
+                batch_r = responses[i : i + batch_size]
 
-            prompts = [self._build_judge_prompt(q, r) for q, r in zip(batch_q, batch_r)]
+                prompts = [self._build_judge_prompt(q, r, j_tokenizer) for q, r in zip(batch_q, batch_r)]
 
-            inputs = self.judge_tokenizer(
-                prompts,
-                return_tensors="pt",
-                padding=True,
-                truncation=True,
-                max_length=2048,
-            ).to(self.judge_model.device)
+                inputs = j_tokenizer(
+                    prompts,
+                    return_tensors="pt",
+                    padding=True,
+                    truncation=True,
+                    max_length=2048,
+                ).to(j_model.device)
 
-            outputs = self.judge_model.generate(
-                **inputs,
-                max_new_tokens=self.config.judge_max_new_tokens,
-                temperature=self.config.judge_temperature,
-                do_sample=True if self.config.judge_temperature > 0 else False,
-                pad_token_id=self.judge_tokenizer.eos_token_id,
-            )
+                outputs = j_model.generate(
+                    **inputs,
+                    max_new_tokens=self.config.judge_max_new_tokens,
+                    temperature=self.config.judge_temperature,
+                    do_sample=True if self.config.judge_temperature > 0 else False,
+                    pad_token_id=j_tokenizer.eos_token_id,
+                )
 
-            # Decode เฉพาะ generated tokens
-            input_lengths = inputs["input_ids"].shape[1]
-            generated = outputs[:, input_lengths:]
-            decoded = self.judge_tokenizer.batch_decode(generated, skip_special_tokens=True)
+                input_lengths = inputs["input_ids"].shape[1]
+                generated = outputs[:, input_lengths:]
+                decoded = j_tokenizer.batch_decode(generated, skip_special_tokens=True)
 
-            for text in decoded:
-                score = self._parse_score(text)
-                scores.append(score)
+                for text in decoded:
+                    score = self._parse_score(text)
+                    scores_for_this_model.append(score)
+                    
+            all_model_scores.append(scores_for_this_model)
 
-        return scores
+        # หาค่าเฉลี่ยของกรรมการทุกคน (Ensemble Average)
+        avg_scores = []
+        n_models = len(self.judges)
+        for i in range(n_responses):
+            total = sum(all_model_scores[m][i] for m in range(n_models))
+            avg_scores.append(total / n_models)
+
+        return avg_scores
 
     def _parse_score(self, text: str) -> float:
         """Parse score จาก output ของ judge model"""
