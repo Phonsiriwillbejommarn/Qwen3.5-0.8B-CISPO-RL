@@ -86,28 +86,35 @@ def compute_format_reward(response: str, intended_thinking: bool = True) -> floa
     ให้ reward/penalty ตามโหมดการคิด:
     ใช้ Regex ตรวจสอบแท็กที่สมบูรณ์เท่านั้น เพื่อป้องกันปัญหาพิมพ์ <thinking> แล้วมั่วได้คะแนน
     """
-    has_think_open = bool(re.search(r"<(think|tink)>", response))
-    has_think_close = bool(re.search(r"</(think|tink)>", response))
+    # 1. ต้องเปิดที่จุดเริ่มต้นของประโยคเท่านั้น (ห้ามตอบก่อนแล้วค่อยคิด)
+    # รัดกุม: อนุญาตให้มี whitespace ข้างหน้าได้นิดหน่อยแล้วต้องเจอ <think> ทันที
+    starts_with_think = bool(re.match(r"^\s*<(think|tink)>", response))
     
-    # เช็คว่ามีเนื้อหาหลังจากปิดแท็กหรือไม่ (ป้องกันการตอบแต่ในแท็ก)
+    # 2. ต้องมีการเปิดและปิดอย่างละ 1 ครั้งเท่านั้น (ห้ามเปิด/ปิดซ้ำซ้อน)
+    open_count = len(re.findall(r"<(think|tink)>", response))
+    close_count = len(re.findall(r"</(think|tink)>", response))
+    
+    # 3. ต้องมีเนื้อหาคำตอบหลังปิดแท็ก
     has_content_after_think = bool(
-        # ต้องตามด้วย whitespace หรือไม่ก็ขึ้นตัวอักษรใหม่ที่ไม่ใช่ <
         re.search(r"</(think|tink)>\s*[^<\s]+", response, re.DOTALL)
     )
+
     if intended_thinking:
-        # ─── โหมดคิด (Thinking Mode) ───
-        # Zero Tolerance: พลาดจุดเดียว โดน -1.0 ไม่มีการให้คะแนนโบนัสปลอบใจ
-        if not has_think_open:
-            return -1.0  # ลืมเปิดแท็ก
-        if not has_think_close:
-            return -1.0  # เพ้อจนลืมปิดแท็ก
+        # Zero Tolerance: กฎเหล็ก
+        if not starts_with_think:
+            return -1.0  # ต้องเริ่มประโยคด้วย <think> เท่านั้น!
+        if open_count != 1:
+            return -1.0  # ห้ามเปิดแท็กหลายรอบ หรือลืมเปิด
+        if close_count != 1:
+            return -1.0  # ห้ามปิดแท็กหลายรอบ หรือลืมปิด
         if not has_content_after_think:
-            return -1.0  # ปิดแท็กแต่ไม่ตอบอะไรเลย
+            return -1.0  # ปิดแท็กแล้วเงียบ ไม่ตอบคำถาม
             
-        return 1.0  # ผ่านแบบสมบูรณ์แบบ
+        return 1.0  # ผ่านแบบไร้ที่ติ
+            
     else:
         # ─── โหมดตอบตรง (Direct Mode) ───
-        if has_think_open or has_think_close:
+        if open_count > 0 or close_count > 0:
             return -1.0
         return 1.0  # ตอบตรงตามสั่ง
 
