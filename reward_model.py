@@ -83,21 +83,16 @@ def compute_repetition_penalty(text: str, ngram_size: int = 4, threshold: float 
 def compute_format_reward(response: str, intended_thinking: bool = True) -> float:
     """
     ให้ reward/penalty ตามโหมดการคิด:
-    1. ถ้าโหมดคิด (intended_thinking=True):
-       - มีแท็กเปิด/ปิด ครบถ้วน = Reward 1.0 (0.3+0.3+0.4)
-       - ลืมปิดแท็ก = Penalty -0.5
-    2. ถ้าโหมดตอบตรง (intended_thinking=False):
-       - ห้ามมีแท็ก <think> หรือ <tink> = Penalty -0.5
-       - ไม่มีแท็กเลย = Reward 1.0 (ถือว่าเชื่อฟังคำสั่ง)
+    ใช้ Regex ตรวจสอบแท็กที่สมบูรณ์เท่านั้น เพื่อป้องกันปัญหาพิมพ์ <thinking> แล้วมั่วได้คะแนน
     """
-    has_think_open = "<think>" in response or "<tink>" in response
-    has_think_close = "</think>" in response or "</tink>" in response
+    has_think_open = bool(re.search(r"<(think|tink)>", response))
+    has_think_close = bool(re.search(r"</(think|tink)>", response))
     
-    # เช็คว่ามีเนื้อหาหลังจากปิดแท็กหรือไม่
+    # เช็คว่ามีเนื้อหาหลังจากปิดแท็กหรือไม่ (ป้องกันการตอบแต่ในแท็ก)
     has_content_after_think = bool(
-        re.search(r"</(think|tink)>\s*\S", response, re.DOTALL)
+        # ต้องตามด้วย whitespace หรือไม่ก็ขึ้นตัวอักษรใหม่ที่ไม่ใช่ <
+        re.search(r"</(think|tink)>\s*[^<\s]+", response, re.DOTALL)
     )
-
     if intended_thinking:
         # ─── โหมดคิด (Thinking Mode) ───
         score = 0.0
