@@ -144,7 +144,7 @@ def compute_length_reward(
 # ─────────────────────────────────────────────
 @dataclass
 class RewardConfig:
-    judge_model_name: str = "Qwen/Qwen3.5-9B"
+    judge_model_name: str = "google/gemma-4-E4B-it"
     judge_max_new_tokens: int = 128
     judge_temperature: float = 0.1
     judge_batch_size: int = 8
