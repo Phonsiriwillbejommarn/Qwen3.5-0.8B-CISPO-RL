@@ -3,7 +3,7 @@
 
 # ─── Models ───────────────────────────────────────────────────────────────────
 policy_model_name: "Phonsiri/Qwen3.5-0.8B-Distillation-Phase2"
-judge_model_name: "Qwen/Qwen3.5-9B"
+judge_model_name: "Qwen/Qwen2.5-7B-Instruct"  # เปลี่ยนเป็นรุ่น Instruct ที่ฉลาดและให้คะแนนได้แม่นยำกว่ามาก
 output_dir: "./outputs/cispo_run_002"
 run_name: "cispo-qwen3.5-0.8b-rl-v2"
 
