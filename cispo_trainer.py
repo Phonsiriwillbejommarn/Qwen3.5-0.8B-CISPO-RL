@@ -245,10 +245,22 @@ def cispo_loss(
         total_tokens += T
 
         # KL term: ใช้ non-negative approximation จาก Jensen's inequality
-        # KL(pi_theta || pi_ref) >= 0 เสมอ
-        # log_ratio.mean() เดิมสามารถติดลบได้ → KL penalty กลายเป็น bonus → เสถียรภาพพัง
-        # เปลี่ยนเป็น: (r - 1 - log_r) ซึ่ง >= 0 เสมอ (PPO-style proper KL)
-        kl_approx = (ratio.detach() - 1 - log_ratio).clamp(min=0)
+        # (r - 1 - log_r) ซึ่ง >= 0 เสมอ
+        # พรอมพท์จาก User: "kl=0.00000 ตลอด"
+        # สาเหตุ: bfloat16 มี epsilon=0.0039 ถ้า log_ratio เล็ก exp(log_ratio) = 1.0
+        # ทำให้ 1.0 - 1.0 - log_ratio = -log_ratio (ติดลบ) แล้วโดน clamp(min=0) กลายเป็น 0
+        # วิธีแก้: cast เป็น float32 ก่อนคำนวณ KL เพื่อไม่ให้เสีย precision ตรง 1.0 + x
+        with torch.autocast(device_type=curr_lp.device.type, enabled=False):
+            log_r_fp32 = log_ratio.float()
+            r_fp32 = torch.exp(log_r_fp32)
+            # KL = exp(ref - policy) - (ref - policy) - 1 (GRPO default)
+            # หรือ exp(policy - ref) - (policy - ref) - 1 
+            # เราใช้ PPO style: exp(log_ratio) - 1 - log_ratio
+            kl_approx = (r_fp32 - 1.0 - log_r_fp32)
+            
+            # เผื่อติดลบจาก float precision นิดหน่อย
+            kl_approx = torch.relu(kl_approx).to(curr_lp.dtype)
+            
         kl_terms.append(kl_approx.mean())
 
         # Tracking
