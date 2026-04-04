@@ -109,16 +109,19 @@ def main():
 
     start_step = 1
     policy_model_path = cfg["policy_model_name"]
+    subfolder = cfg.get("subfolder", None)
     
     if resume_path and Path(resume_path).exists():
         policy_model_path = resume_path # โมเดลจะโหลดจาก checkpoint
+        subfolder = None  # บังคับยกเลิก subfolder เพราะนี่คือโฟลเดอร์ Local
 
     # ─── Policy Model ───
-    print(f"\n[Policy] Loading: {policy_model_path}")
+    print(f"\n[Policy] Loading: {policy_model_path}" + (f" (Subfolder: {subfolder})" if subfolder else ""))
     try:
         policy_tokenizer = AutoTokenizer.from_pretrained(
             policy_model_path,
             trust_remote_code=True,
+            subfolder=subfolder,
         )
     except Exception:
         # แก้ไข ValueError: Tokenizer class TokenizersBackend does not exist
@@ -137,6 +140,7 @@ def main():
         device_map="cuda:0",        # Policy model บน GPU 0
         trust_remote_code=True,
         attn_implementation="sdpa", # ใช้ SDPA
+        subfolder=subfolder,
     )
     policy_model.train()
 
@@ -154,13 +158,15 @@ def main():
 
     # ─── Reference Model (SFT Anchor) ───
     # โหลดโมเดลตัวตั้งต้นเพื่อใช้คำนวณ KL & Old Logprobs (ไม่ให้อัปเดตน้ำหนัก)
-    print(f"\n[RefModel] Loading SFT Baseline: {cfg['policy_model_name']}")
+    ref_subfolder = cfg.get("subfolder", None)
+    print(f"\n[RefModel] Loading SFT Baseline: {cfg['policy_model_name']}" + (f" (Subfolder: {ref_subfolder})" if ref_subfolder else ""))
     ref_model = AutoModelForCausalLM.from_pretrained(
         cfg["policy_model_name"], # โหลดจากตัว SFT ดั้งเดิมเสมอ ไม่ว่าจะ resume ก็ตาม
         torch_dtype=torch.bfloat16 if cfg.get("bf16", True) else torch.float32,
         device_map="cuda:0",      # แชร์ GPU กับ Policy (เพราะ 0.8B เล็กมาก)
         trust_remote_code=True,
         attn_implementation="sdpa",
+        subfolder=ref_subfolder,
     )
     ref_model.eval()
     ref_model.requires_grad_(False) # แช่แข็งน้ำหนัก 100%
