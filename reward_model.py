@@ -188,9 +188,12 @@ def compute_length_reward(
     think_tokens = len(tokenizer.encode(think_text)) if think_text else 0
 
     if think_tokens <= min_think_tokens:
-        # Zone 1: คิดสั้นเกินไป หักคะแนนเบาๆ
+        # Zone 1: คิดสั้นเกินไป 
+        if think_tokens < 10:
+            return -2.0  # หักคะแนนรุนแรงสุด ป้องกัน Lazy Hack (แกล้งพิมพ์ </think> ทิ้งทันที)
+            
         ratio = think_tokens / max(min_think_tokens, 1)
-        return -0.3 * (1.0 - ratio)  # [−0.3, 0.0]
+        return -1.0 * (1.0 - ratio)  # [−1.0, 0.0] แบบค่อยๆ ลาดลง
 
     elif think_tokens <= optimal_think_tokens:
         # Zone 2: ramp up linear ให้ reward ตามความพยายาม
