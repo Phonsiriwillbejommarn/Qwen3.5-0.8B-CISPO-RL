@@ -297,13 +297,20 @@ def main():
     saved_checkpoints = []
 
     global_step = start_step
+    start_epoch = (global_step - 1) // len(dataloader) if global_step > 0 else 0
+    batches_to_skip = (global_step - 1) % len(dataloader) if global_step > 0 else 0
+    
     done = False
 
-    for epoch in range(num_epochs):
+    for epoch in range(start_epoch, num_epochs):
         if done:
             break
 
-        for batch in dataloader:
+        for step_idx, batch in enumerate(dataloader):
+            if epoch == start_epoch and step_idx < batches_to_skip:
+                if step_idx == 0:
+                    print(f"[DataLoader] Fast-forwarding: skipping first {batches_to_skip} batches...")
+                continue
             if max_steps > 0 and global_step >= max_steps:
                 done = True
                 break
