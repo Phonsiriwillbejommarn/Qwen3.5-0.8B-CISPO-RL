@@ -12,22 +12,35 @@ run_name: "cispo-qwen3.5-0.8b-rl-v2"
 # ─── CISPO Algorithm ──────────────────────────────────────────────────────────
 epsilon_high: 5.0          # Upper clip bound for IS weights (ε_high)
 kl_coeff: 0.005            # เพิ่มจาก 0.002 เป็น 0.005 เพื่อดึงสติให้อยู่กับร่องกับรอย
-group_size: 4              # Number of samples per prompt (G) for group-relative advantage (Optimized)
+group_size: 6              # Number of samples per prompt (G) — sync กับ RewardConfig.num_generations
 temperature: 1.0           # Sampling temperature for rollouts
 top_p: 0.95
 top_k: 50
 
 # ─── Reward Weights ───────────────────────────────────────────────────────────
-reward_judge_weight: 1.0       # Weight for AI Judge reward (Qwen3.5-9B)
-reward_length_weight: 0.5      # เพิ่มน้ำหนักการคุมความยาว (ความเพ้อ) ให้หนักขึ้น
-reward_repetition_weight: 1.0  # หักคะแนนซ้ำหนักสุดๆ
-reward_format_weight: 1.0      # ลดความกังวลจากการโดนหักคะแนนหนักๆ (จาก 2.0 กลับมา 1.0)
+reward_judge_weight: 1.0           # Weight for AI Judge reward
+reward_length_weight: 0.4          # Bell curve + Safety Net weight
+reward_think_rep_weight: 0.5       # หักหนักสำหรับ reasoning loop ใน <think>
+reward_answer_rep_weight: 0.3      # หักคำตอบซ้ำ
+reward_format_weight: 1.0          # บังคับ format <think>...</think>
 
-# Anti-repetition config
-repetition_ngram_size: 3       # ดักลูปคำซ้ำตั้งแต่ 3 คำติด (ไวขึ้นกว่า 4 คำ)
-repetition_threshold: 0.2      # ปรับจาก 0.15 เป็น 0.2 (ดักลูปเร็วขึ้น)
-max_think_tokens: 4096          # ปรับเป็น 4096 ตามที่คุณขอ (พื้นที่กว้างขึ้น)
-max_response_tokens: 2560       # Target max tokens for response section
+# Dual repetition config
+think_ngram_size: 16               # จับ loop ระดับ paragraph
+think_rep_threshold: 0.12          # เข้มงวด (โมเดลนี้วน 7+ รอบ)
+answer_ngram_size: 4               # จับคำซ้ำในคำตอบ
+answer_rep_threshold: 0.10         # เข้มงวดมาก คำตอบต้องกระชับ
+
+# Bell curve length config
+min_think_tokens: 64               # คิดน้อยกว่านี้ถือว่าสั้นเกิน
+optimal_think_tokens: 512          # zone ที่ให้ reward สูงสุด (+0.5)
+max_think_tokens: 4096             # เส้นตาย Safety Net
+max_response_tokens: 512           # Target max tokens for response section
+
+# Ensemble + GRPO
+ensemble_strategy: "weighted_min"  # 70% min + 30% avg (conservative)
+group_normalize: true              # normalize reward ภายใน group
+adv_clamp: 10.0                    # คุม magnitude ของ scaled advantage
+
 
 # ─── Training ─────────────────────────────────────────────────────────────────
 learning_rate: 5.0e-7          # ลด LR เพื่อให้โมเดลไม่ Overfit/Drift เร็วเกินไป
@@ -40,7 +53,7 @@ logging_steps: 1             # ดู log ทุก 1 step
 
 # Batch sizes (H100 80GB — full precision)
 per_device_train_batch_size: 1   # prompts per step (Cloud optimized)
-gradient_accumulation_steps: 8   # effective batch = 8 prompts * G=4 = 32 responses
+gradient_accumulation_steps: 8   # effective batch = 8 prompts * G=6 = 48 responses
 dataloader_num_workers: 4
 
 # ─── Generation ───────────────────────────────────────────────────────────────

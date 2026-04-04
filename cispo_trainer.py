@@ -49,18 +49,20 @@ def build_token_process_rewards(
     response_text: str,
     response_token_ids: List[int],
     tokenizer,
-    judge_score: float,         # r^perf  (0.0–1.0 จาก AI judge)
-    rep_penalty: float,         # repetition penalty (0.0–1.0)
-    length_penalty: float,      # length excess penalty (>=0)
+    judge_score: float,           # r^perf  (0.0-1.0 จาก AI judge)
+    think_rep_penalty: float,     # repetition penalty ในส่วนคิด (0.0-1.0)
+    answer_rep_penalty: float,    # repetition penalty ในคำตอบ (0.0-1.0)
+    len_reward: float,            # bell curve length reward (เป็นได้ทั้ง + และ -)
     speed_weight: float = 1.0,
     perf_weight: float = 1.0,
 ) -> List[float]:
     """
     สร้าง token-level process rewards สำหรับ 1 response:
 
-      r_p^perf  = judge_score        → assign ให้ token สุดท้ายเท่านั้น
-      r_p^speed = speed_reward_t     → distribute ทุก token เท่าๆ กัน
-                                       (penalty สำหรับ length + repetition)
+      r_p^perf  = judge_score   → assign ให้ token สุดท้ายเท่านั้น (outcome reward)
+      r_p^speed = distributed   → distribute ทุก token เท่าๆ กัน
+                                  = -(think_rep + answer_rep - len_reward) / T
+                                  (+ ถ้าคิดดี, - ถ้าวนซ้ำ/ยาวเกิน)
 
     Returns: list ของ (r_p^speed + r_p^perf) สำหรับแต่ละ token position p
     """
@@ -68,13 +70,14 @@ def build_token_process_rewards(
     if T == 0:
         return []
 
-    # r^perf: ให้ที่ token สุดท้ายเท่านั้น (outcome reward)
+    # r^perf: assign ให้ token สุดท้ายเท่านั้น (outcome reward)
     r_perf = [0.0] * T
     r_perf[-1] = perf_weight * judge_score
 
-    # r^speed: distribute evenly — penalty สำหรับ repetition + length
-    # (negative = ช้า/ไม่มีประสิทธิภาพ)
-    per_token_speed = speed_weight * (-(rep_penalty + length_penalty) / T)
+    # r^speed: รวม think_rep + answer_rep - len_reward
+    # len_reward เป็น + ถ้าคิดดี (bell curve) หรือ - ถ้าวนซ้ำ (safety net)
+    combined_speed = -((think_rep_penalty + answer_rep_penalty) - len_reward)
+    per_token_speed = speed_weight * (combined_speed / T)
     r_speed = [per_token_speed] * T
 
     # Combined per-token: r_p = r_p^speed + r_p^perf
@@ -241,8 +244,12 @@ def cispo_loss(
         pg_terms.append(pg.sum())
         total_tokens += T
 
-        # KL term
-        kl_terms.append(log_ratio.mean())
+        # KL term: ใช้ non-negative approximation จาก Jensen's inequality
+        # KL(pi_theta || pi_ref) >= 0 เสมอ
+        # log_ratio.mean() เดิมสามารถติดลบได้ → KL penalty กลายเป็น bonus → เสถียรภาพพัง
+        # เปลี่ยนเป็น: (r - 1 - log_r) ซึ่ง >= 0 เสมอ (PPO-style proper KL)
+        kl_approx = (ratio.detach() - 1 - log_ratio).clamp(min=0)
+        kl_terms.append(kl_approx.mean())
 
         # Tracking
         clip_fracs.append((ratio > (1.0 + epsilon_high)).float().mean().item())
@@ -299,7 +306,7 @@ class CISPOTrainer:
         self.optimizer = optimizer
         self.scheduler = scheduler
 
-        self.group_size = config.get("group_size", 8)
+        self.group_size = config.get("group_size", 6)  # sync กับ RewardConfig.num_generations
         self.epsilon_high = config.get("epsilon_high", 5.0)
         self.kl_coeff = config.get("kl_coeff", 0.001)
         self.max_new_tokens = config.get("max_new_tokens", 1024)
@@ -307,6 +314,7 @@ class CISPOTrainer:
         self.top_p = config.get("top_p", 0.95)
         self.top_k = config.get("top_k", 50)
         self.grad_accum_steps = config.get("gradient_accumulation_steps", 4)
+        self.adv_clamp = config.get("adv_clamp", 10.0)  # คุม magnitude ของ scaled advantage
 
         # Process reward weights
         self.speed_weight = config.get("reward_length_weight", 0.1)
@@ -381,13 +389,11 @@ class CISPOTrainer:
         all_prompts_rep = [p for p in prompts for _ in range(self.group_size)]
         all_thinking_rep = [it for it in intended_thinking for _ in range(self.group_size)]
 
-        # ── 2. Compute composite rewards via reward model ──
-        # reward_model returns final scalar rewards ต่อ response
-        # พร้อม component breakdown
-        final_rewards, components = self.reward_model.compute_rewards_with_components(
+        # ── 2. Compute composite rewards via reward model (GRPO-normalized) ──
+        normalized_rewards, final_rewards, components = self.reward_model.compute_group_rewards(
             all_prompts_rep, all_responses, intended_thinking=all_thinking_rep
         )
-        # components: list of dict {"judge", "rep_penalty", "length_penalty"}
+        # components: list of dict {"judge", "think_rep_penalty", "answer_rep_penalty", "len_reward"}
 
         # ── 3. Build token-level process rewards & return-to-go advantages ──
         all_token_rewards: List[List[float]] = []
@@ -401,8 +407,9 @@ class CISPOTrainer:
                 response_token_ids=resp_token_ids,
                 tokenizer=self.tokenizer,
                 judge_score=comp["judge"],
-                rep_penalty=comp["rep_penalty"],
-                length_penalty=comp["length_penalty"],
+                think_rep_penalty=comp["think_rep_penalty"],
+                answer_rep_penalty=comp["answer_rep_penalty"],
+                len_reward=comp["len_reward"],
                 speed_weight=self.speed_weight,
                 perf_weight=self.perf_weight,
             )
@@ -411,16 +418,36 @@ class CISPOTrainer:
         # Baselines: B_i = mean total reward in same group
         baselines = compute_group_baselines(all_token_rewards, self.group_size)
 
-        # Return-to-go advantage: Ã_{i,t} = Σ_{p=t}^T r_p - B_i
+        # Return-to-go advantage: A_process_{i,t} = Sigma_{p=t}^T r_p - B_i
         all_advantages: List[List[float]] = [
             compute_process_return_to_go(all_token_rewards[i], baselines[i])
             for i in range(len(all_token_rewards))
         ]
 
+        # ── Option B: Hybrid CISPO + GRPO Scaling ──
+        # A_final_{i,t} = normalized_reward_i * A_process_{i,t}
+        #
+        # normalized_reward_i = GRPO scalar: (r_i - mean(group)) / std(group)
+        #   บอกว่า response นี้ดีกว่า/แย่กว่า peer ในกลุ่มแค่ไหน
+        # A_process_{i,t} = token-level credit assignment
+        #   บอกว่า token ไหนที่ควร reinforce
+        #
+        # ผลลัพธ์:
+        #   norm > 0 (ดีกว่ากลุ่ม) → amplify gradient
+        #   norm < 0 (แย่กว่ากลุ่ม) → flip gradient → penalize tokens
+        # Clamp advantage magnitude เพื่อป้องกัน exploding gradient
+        # (GRPO_norm * ProcessRTG อาจเป็นอ่านสิ่ง magnitude เกินไปโดยไม่ตั้งใจ)
+        adv_clamp = self.adv_clamp
+        all_advantages = [
+            [max(min(norm_r * adv, adv_clamp), -adv_clamp) for adv in adv_list]
+            for norm_r, adv_list in zip(normalized_rewards, all_advantages)
+        ]
+
         # ── 4. Pad sequences for batched forward pass ──
         max_len = max(ids.shape[0] for ids in all_input_ids)
         B = len(all_input_ids)
-        padded_ids = torch.zeros(B, max_len, dtype=torch.long)
+        pad_id = self.tokenizer.pad_token_id or self.tokenizer.eos_token_id
+        padded_ids = torch.full((B, max_len), pad_id, dtype=torch.long)
         attn_masks = torch.zeros(B, max_len, dtype=torch.long)
 
         for i, ids in enumerate(all_input_ids):
@@ -465,6 +492,7 @@ class CISPOTrainer:
 
         self.global_step += 1
         metrics["train/mean_reward"] = sum(final_rewards) / len(final_rewards)
+        metrics["train/mean_norm_reward"] = sum(normalized_rewards) / len(normalized_rewards)
         metrics["train/mean_baseline"] = sum(baselines) / len(baselines)
         metrics["train/step"] = self.global_step
 

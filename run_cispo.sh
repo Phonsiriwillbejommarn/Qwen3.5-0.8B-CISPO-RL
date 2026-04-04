@@ -38,7 +38,7 @@ echo ""
 CONFIG="${CONFIG:-configs/cispo_config.yaml}"
 MAX_STEPS="${MAX_STEPS:-1000}"
 RUN_NAME="${RUN_NAME:-cispo-qwen3.5-0.8b-v1}"
-OUTPUT_DIR="${OUTPUT_DIR:-./outputs/cispo_run_001}"
+OUTPUT_DIR="${OUTPUT_DIR:-./outputs/cispo_run_002}"
 LR="${LR:-5e-7}"
 
 echo "[Config] $CONFIG"

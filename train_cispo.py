@@ -172,14 +172,27 @@ def main():
         judge_max_new_tokens=cfg.get("judge_max_new_tokens", 128),
         judge_temperature=cfg.get("judge_temperature", 0.1),
         judge_batch_size=cfg.get("judge_batch_size", 8),
+        # weights
         reward_judge_weight=cfg.get("reward_judge_weight", 1.0),
-        reward_length_weight=cfg.get("reward_length_weight", 0.1),
-        reward_repetition_weight=cfg.get("reward_repetition_weight", 0.3),
-        reward_format_weight=cfg.get("reward_format_weight", 0.1),
-        repetition_ngram_size=cfg.get("repetition_ngram_size", 4),
-        repetition_threshold=cfg.get("repetition_threshold", 0.3),
-        max_think_tokens=cfg.get("max_think_tokens", 768),
-        max_response_tokens=cfg.get("max_response_tokens", 256),
+        reward_length_weight=cfg.get("reward_length_weight", 0.4),
+        reward_think_rep_weight=cfg.get("reward_think_rep_weight", 0.5),
+        reward_answer_rep_weight=cfg.get("reward_answer_rep_weight", 0.3),
+        reward_format_weight=cfg.get("reward_format_weight", 0.3),
+        # dual repetition config
+        think_ngram_size=cfg.get("think_ngram_size", 16),
+        think_rep_threshold=cfg.get("think_rep_threshold", 0.12),
+        answer_ngram_size=cfg.get("answer_ngram_size", 4),
+        answer_rep_threshold=cfg.get("answer_rep_threshold", 0.10),
+        # bell curve length config
+        min_think_tokens=cfg.get("min_think_tokens", 64),
+        optimal_think_tokens=cfg.get("optimal_think_tokens", 512),
+        max_think_tokens=cfg.get("max_think_tokens", 4096),
+        max_response_tokens=cfg.get("max_response_tokens", 512),
+        # ensemble
+        ensemble_strategy=cfg.get("ensemble_strategy", "weighted_min"),
+        # GRPO group
+        num_generations=cfg.get("group_size", 6),
+        group_normalize=cfg.get("group_normalize", True),
         dtype=torch.bfloat16 if cfg.get("bf16", True) else torch.float32,
     )
     reward_model = CISPORewardModel(reward_cfg, policy_tokenizer)
@@ -273,7 +286,7 @@ def main():
     print(f"  CISPO RL Training")
     print(f"  Policy : {cfg['policy_model_name']}")
     print(f"  Judges : {cfg.get('judge_models', [])}")
-    print(f"  Steps  : {total_steps}  |  Group size: {cfg.get('group_size', 8)}")
+    print(f"  Steps  : {total_steps}  |  Group size: {cfg.get('group_size', 6)}")
     print(f"  ε_high : {cfg.get('epsilon_high', 5.0)}  |  β_kl: {cfg.get('kl_coeff', 0.001)}")
     print(f"{'='*60}\n")
 
