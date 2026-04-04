@@ -3,6 +3,7 @@
 
 # ─── Models ───────────────────────────────────────────────────────────────────
 policy_model_name: "Phonsiri/Qwen3.5-0.8B-Distillation-Phase2"
+subfolder: "epoch_1_step_90"  # โฟลเดอร์ย่อยใน HF ที่เป็นตัวที่ดีที่สุด
 judge_models: 
   - "Qwen/Qwen3.5-9B"
   - "google/gemma-4-E4B-it"
